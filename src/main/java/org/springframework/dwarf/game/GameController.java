@@ -7,10 +7,9 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dwarf.board.Board;
-import org.springframework.dwarf.board.BoardService;
 import org.springframework.dwarf.player.Player;
 import org.springframework.dwarf.player.PlayerService;
-import org.springframework.dwarf.web.CorrentUserController;
+import org.springframework.dwarf.web.LoggedUserController;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,7 +28,7 @@ public class GameController {
 	
 	private GameService gameService;
 	private PlayerService playerService;
-	
+
 	@Autowired
 	public GameController(GameService gameService, PlayerService playerService) {
 		this.gameService = gameService;
@@ -65,10 +64,10 @@ public class GameController {
     @GetMapping(path="/{gameId}/exit")
     public String exitGame(@PathVariable("gameId") Integer gameId, ModelMap modelMap){
         Optional<Game> game = gameService.findByGameId(gameId);
-        Player currentPlayer = this.loggedPlayer();
-
+        Player loggedPlayer = LoggedUserController.loggedPlayer();
+        
         if(game.isPresent()){
-        	gameService.exit(game.get(), currentPlayer);
+        	gameService.exit(game.get(), loggedPlayer);
         }else{
             modelMap.addAttribute("message", "game not found!");
         }
@@ -97,7 +96,7 @@ public class GameController {
 	@GetMapping(path="/waitingPlayers")
 	public String initCreateGame(ModelMap modelMap) {
 		Game game = new Game();
-		Player loggedPlayer = this.loggedPlayer();
+		Player loggedPlayer = LoggedUserController.loggedPlayer();
 		
 		game.setFirstPlayer(loggedPlayer);
 		game.setCurrentPlayer(loggedPlayer);
@@ -119,11 +118,10 @@ public class GameController {
 	public String joinGame(@PathVariable("gameId") Integer gameId, ModelMap modelMap, ModelAndView modelAndView, HttpServletResponse response) {
 		response.addHeader("Refresh", "2");
 		
-		
 		String view = "games/waitingPlayers";
 		
 		Game game = gameService.findByGameId(gameId).get();
-        Player loggedPlayer = this.loggedPlayer();
+        Player loggedPlayer = LoggedUserController.loggedPlayer();
         
         // if first player started the game, go to board
         Optional<Board> board = gameService.findBoardByGameId(gameId);
@@ -148,16 +146,16 @@ public class GameController {
 	}
 	
 	private Player loggedPlayer() {
-		String playerUsername = CorrentUserController.returnCurrentUserName();
+		String playerUsername = LoggedUserController.returnLoggedUserName();
 		Player player = playerService.findPlayerByUserName(playerUsername);
-		
+
 		return player;
 	}
 
     private Boolean amIFirstPlayer(Game game){
         Boolean amI = false;
         if(game.firstPlayer != null)
-            amI = game.firstPlayer.getId() == this.loggedPlayer().getId();
+            amI = game.firstPlayer.getId() == LoggedUserController.loggedPlayer().getId();
 
         return amI;
     }

@@ -2,9 +2,9 @@ package org.springframework.dwarf.board;
 
 import java.util.List;
 
+import javax.persistence.CascadeType;
 import javax.persistence.Entity;
 import javax.persistence.JoinColumn;
-import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 import javax.persistence.OneToOne;
 import javax.persistence.Table;
@@ -35,6 +35,7 @@ public class Board extends BaseEntity{
     @Positive
     int height;
     
+    //@OneToMany(mappedBy = "board")
     @OneToMany
     @JoinColumn(name = "BOARD_ID")
     List<BoardCell> boardCells;
@@ -68,5 +69,12 @@ public class Board extends BaseEntity{
         this.mountainDeck = mountainDeck;
         this.game = game;
         this.specialDecks = specialDecks;
+    }
+    
+    public BoardCell getBoardCell(Integer xposition, Integer yposition) {
+    	// xposition -> [1,3]
+    	// yposition -> [0,2]
+    	Integer index = (xposition-1)+(3*yposition);
+    	return this.getBoardCells().get(index);
     }
 }

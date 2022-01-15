@@ -69,18 +69,26 @@ public class BoardService {
 			specialDecks.add(specialDeckSer.createSpecialDeck(0, i/3, specialCardsId.subList(i, i+3)));
 		}
 		
-		for(int xposition=1; xposition < 4; xposition++) {
-			for(int yposition=0; yposition < 3; yposition++) {
+		for(int yposition=0; yposition < 3; yposition++) {
+			for(int xposition=1; xposition < 4; xposition++) {
 				cells.add(boardCellSer.createBoardCell(xposition, yposition));
 			}
 		}
-		
 		
 		Board board = new Board(cells, mountainDeck, game, specialDecks);
 		
 		boardRepo.save(board);
 		
+		//this.setCellsBoardId(cells, board);
+		
 		return board;
+	}
+	
+	private void setCellsBoardId(List<BoardCell> cells, Board board) {
+		for(BoardCell cell: cells) {
+			//cell.setBoard(board);
+			boardCellSer.saveBoardCell(cell);
+		}
 	}
 	
 	private List<Integer> randomList(){

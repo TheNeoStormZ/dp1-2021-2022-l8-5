@@ -63,6 +63,27 @@ public class WorkerServiceTest {
 	}
 	
 	@Test
+	public void testFindNotPlacedByPlayerIdAndGameId() {
+		int pid = 1;
+		int gid = 1;
+		
+		Collection<Worker> Worker = workerService.findNotPlacedByPlayerIdAndGameId(pid,gid);
+		assertThat(Worker.size()).isEqualTo(1);
+		
+	}
+	
+	@Test
+	public void tesFfindNotPlacedAndGameId() {
+		int gid = 1;
+		
+		Collection<Worker> Worker = workerService.findNotPlacedByGameId(gid);
+		assertThat(Worker.size()).isEqualTo(1);
+		
+	}
+	
+	
+	
+	@Test
 	public void testFindByPlayerIdAndGameId() {
 		int pid = 1;
 		int gid = 1;
@@ -71,6 +92,7 @@ public class WorkerServiceTest {
 		assertThat(Worker.size()).isEqualTo(1);
 		
 	}
+	
 	
 	@Test
 	public void testDeletePlayerWorker() {
@@ -82,7 +104,7 @@ public class WorkerServiceTest {
 	}
 	
 	@Test
-	public void testSaveWorker() {
+	public void testSaveWorker() throws IllegalPositionException {
 		Worker WorkerTest = new Worker();
 		WorkerTest.setStatus(true);
 		WorkerTest.setXposition(3);

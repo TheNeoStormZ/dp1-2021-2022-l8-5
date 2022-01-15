@@ -16,9 +16,7 @@
 package org.springframework.dwarf.player;
 
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import javax.validation.Valid;
 
@@ -26,13 +24,13 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dwarf.game.GameService;
-import org.springframework.dwarf.user.Authorities;
 import org.springframework.dwarf.user.AuthoritiesService;
 import org.springframework.dwarf.user.DuplicatedEmailException;
 import org.springframework.dwarf.user.DuplicatedUsernameException;
+import org.springframework.dwarf.user.InvalidEmailException;
 import org.springframework.dwarf.user.User;
 import org.springframework.dwarf.user.UserService;
-import org.springframework.dwarf.web.CorrentUserController;
+import org.springframework.dwarf.web.LoggedUserController;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.ui.ModelMap;
@@ -92,10 +90,17 @@ public class PlayerController {
 				
 				return "redirect:/players";
 			} catch (DuplicatedUsernameException dp) {
-				result.rejectValue (" name", " duplicate", "already exists");
+				result.rejectValue ("username", "duplicate", "already exists");
 				return VIEWS_PLAYER_CREATE_OR_UPDATE_FORM;
-				}catch (DuplicatedEmailException dp) {
-					result.rejectValue (" email", " duplicate", "already exists");
+				
+				}
+			catch (DuplicatedEmailException dp) {
+					result.rejectValue ("email", "duplicate", "already exists");
+					return VIEWS_PLAYER_CREATE_OR_UPDATE_FORM;
+					}
+			
+			 catch (InvalidEmailException dp) {
+					result.rejectValue ("email", " invalid", "can't be empty");
 					return VIEWS_PLAYER_CREATE_OR_UPDATE_FORM;
 					}
 			}
@@ -110,9 +115,6 @@ public class PlayerController {
 	}
 	
 	
-	
-	
-
 	@GetMapping(value = "/players")
 	public String processFindForm(Player player, BindingResult result, Map<String, Object> model) {
 
@@ -157,10 +159,8 @@ public class PlayerController {
 	
 	@GetMapping(value = "/editProfile")
 	public String initUpdateMeForm(Model model) {
-		String username = CorrentUserController.returnCurrentUserName();
-
+		String username = LoggedUserController.returnLoggedUserName();
 		Player player = playerService.findPlayerByUserName(username);
-
 		model.addAttribute("player",player);
 
 		return VIEWS_PLAYER_CREATE_OR_UPDATE_FORM;
@@ -168,15 +168,17 @@ public class PlayerController {
 	
 	@PostMapping(value = "/editProfile")
 	public String processUpdateMeForm(@Valid Player player, BindingResult result) throws DataAccessException, DuplicatedUsernameException, DuplicatedEmailException {
-		String username = CorrentUserController.returnCurrentUserName();
+		String username = LoggedUserController.returnLoggedUserName();
 		Integer playerid = playerService.findPlayerByUserName(username).getId();
 		if (result.hasErrors()) {
 			return VIEWS_PLAYER_CREATE_OR_UPDATE_FORM;
 		}
 		else {
 			return updatingPlayer(playerid, player, result);
+		}
+		
 	}
-	}
+	
 	private String updatingPlayer(Integer playerid,Player player,BindingResult result) {
 		Player playerFound = playerService.findPlayerById(playerid);
 		User userFound = playerFound.getUser();
@@ -189,12 +191,15 @@ public class PlayerController {
 			
 			return "redirect:/";
 		} catch (DuplicatedUsernameException dp) {
-			result.rejectValue (" name", " duplicate", "already exists");
+			result.rejectValue ("username", " duplicate", "already exists");
 			return VIEWS_PLAYER_CREATE_OR_UPDATE_FORM;
 			} catch (DuplicatedEmailException dp) {
-				result.rejectValue (" email", " duplicate", "already exists");
+				result.rejectValue ("email", " duplicate", "already exists");
 				return VIEWS_PLAYER_CREATE_OR_UPDATE_FORM;
-				}
+				}  catch (InvalidEmailException dp) {
+					result.rejectValue ("email", " invalid", "can't be empty");
+					return VIEWS_PLAYER_CREATE_OR_UPDATE_FORM;
+					}
 		//this.playerService.savePlayer(player);
 	}
 	
@@ -216,7 +221,7 @@ public class PlayerController {
 	
 	@GetMapping("/myProfile")
 	public ModelAndView showMyProfile() {
-		String username = CorrentUserController.returnCurrentUserName();
+		String username = LoggedUserController.returnLoggedUserName();
 		Integer playerid = playerService.findPlayerByUserName(username).getId();
 		
 		ModelAndView mav = showPlayer(playerid);

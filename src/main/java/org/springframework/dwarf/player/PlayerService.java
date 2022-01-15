@@ -18,18 +18,16 @@ package org.springframework.dwarf.player;
 import java.util.Collection;
 import java.util.List;
 
-import javax.annotation.Resources;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dwarf.game.CreateGameWhilePlayingException;
 import org.springframework.dwarf.game.Game;
-import org.springframework.dwarf.game.GameRepository;
 import org.springframework.dwarf.game.GameService;
 import org.springframework.dwarf.resources.ResourcesService;
 import org.springframework.dwarf.user.AuthoritiesService;
 import org.springframework.dwarf.user.DuplicatedEmailException;
 import org.springframework.dwarf.user.DuplicatedUsernameException;
+import org.springframework.dwarf.user.InvalidEmailException;
 import org.springframework.dwarf.user.UserService;
 import org.springframework.dwarf.worker.WorkerService;
 import org.springframework.stereotype.Service;
@@ -90,13 +88,17 @@ public class PlayerService {
 	}
 
 	@Transactional(rollbackFor = DuplicatedUsernameException.class)
-	public void savePlayer(Player player) throws DataAccessException, DuplicatedUsernameException, DuplicatedEmailException {
+	public void savePlayer(Player player) throws DataAccessException, DuplicatedUsernameException, DuplicatedEmailException, InvalidEmailException {
 		if (getusernameDuplicated(player)){
 			throw new DuplicatedUsernameException();
 		}
 		if (getEmailDuplicated(player)){
 			throw new DuplicatedEmailException();
 		}
+		if (getEmailInvalid(player)){
+			throw new InvalidEmailException();
+		}
+		
 		//creating owner
 		playerRepository.save(player);		
 		//creating user
@@ -110,7 +112,7 @@ public class PlayerService {
 		Player otherPlayer=playerRepository.findByUsername(player.getUsername());
 		res= res && otherPlayer!= null;
 		res= res && otherPlayer.getId()!= player.getId();
-		res = res && otherPlayer.getUsername()==player.getUsername();
+		res = res && otherPlayer.getUsername().equals(player.getUsername());
 		return res;	
 	}
 	
@@ -120,9 +122,16 @@ public class PlayerService {
 		Player otherPlayer=playerRepository.findByEmail(player.getEmail());
 		res= res && otherPlayer!= null;
 		res= res && otherPlayer.getId()!= player.getId();
-		res = res && otherPlayer.getEmail()==player.getEmail();
+		res = res && otherPlayer.getEmail().equals(player.getEmail());
 		return res;	
 	}
+	
+	public Boolean getEmailInvalid(Player player){
+		Boolean res=true;
+		res= res && player.getEmail().isBlank();
+		return res;	
+	}
+	
 	
 	
 	/*
@@ -168,6 +177,7 @@ public class PlayerService {
 			throw new DeletePlayerInGameException();
 		}
 	}
+
 
 
 
