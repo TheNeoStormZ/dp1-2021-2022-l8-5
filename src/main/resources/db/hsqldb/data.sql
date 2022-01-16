@@ -50,6 +50,9 @@ INSERT INTO games(currentPlayer,currentPhase,currentRound,firstPlayer,secondPlay
  -- SEAM,FORGES_ALLOY,GET_HELP,ORC_RAIDERS,DRAGONS_KNOCKERS,SHIDE,
 
  -- Card sheet 1
+ -- INSERT INTO mountain_cards(name, description, xposition, yposition, type, cardgroup, image, actiontype) VALUES ('Orc Raiders', 'If undefended at the end of the round, players cannot take any MINE actions', 1, 0, 'DEFEND', 1, '/resources/images/mountainCards/orcRaiders/orcRaiders.png', 'ORC_RAIDERS');
+ -- INSERT INTO mountain_cards(name, description, xposition, yposition, type, cardgroup, image, actiontype) VALUES ('Knockers', 'If undefended at the end of the round, each player must return 1 iron to the supply', 2, 0, 'DEFEND', 1, '/resources/images/mountainCards/knockers/knockers.png', 'DRAGONS_KNOCKERS');
+ -- INSERT INTO mountain_cards(name, description, xposition, yposition, type, cardgroup, image, actiontype) VALUES ('Great Dragon', 'If undefended at the end of the round, each player must return all gold they possess to the supply', 2, 0, 'DEFEND', 1, '/resources/images/mountainCards/dragons/dragon.png', 'DRAGONS_KNOCKERS');
  INSERT INTO mountain_cards(name, description, xposition, yposition, type, cardgroup, image, actiontype) VALUES ('Iron Seam', 'Take 3 iron from the supply', 1, 0, 'MINE', 1, '/resources/images/mountainCards/ironSeams/ironSeam1.png', 'SEAM');
  INSERT INTO mountain_cards(name, description, xposition, yposition, type, cardgroup, image, actiontype) VALUES ('Iron Seam', 'Take 3 iron from the supply', 2, 0, 'MINE', 1, '/resources/images/mountainCards/ironSeams/ironSeam2.png', 'SEAM');
  INSERT INTO mountain_cards(name, description, xposition, yposition, type, cardgroup, image, actiontype) VALUES ('Iron Seam', 'Take 3 iron from the supply', 3, 0, 'MINE', 1, '/resources/images/mountainCards/ironSeams/ironSeam3.png', 'SEAM');
@@ -103,32 +106,32 @@ INSERT INTO games(currentPlayer,currentPhase,currentRound,firstPlayer,secondPlay
  INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Alloy Steel', 'STEEL', 2);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(1, 'IRON', 3);
  
- INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Sword', 'ITEM', 1);
+ INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Sword', 'ITEMS', 1);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(2, 'STEEL', 3);
  
- INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Mace', 'ITEM', 1);
+ INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Mace', 'ITEMS', 1);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(3, 'STEEL', 2);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(3, 'GOLD', 1);
  
- INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Diadem', 'ITEM', 1);
+ INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Diadem', 'ITEMS', 1);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(4, 'IRON', 1);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(4, 'STEEL', 1);
  
- INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Helm', 'ITEM', 1);
+ INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Helm', 'ITEMS', 1);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(5, 'STEEL', 1);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(5, 'GOLD', 2);
  
- INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Axe', 'ITEM', 1);
+ INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Axe', 'ITEMS', 1);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(6, 'STEEL', 2);
  
- INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Crown', 'ITEM', 1);
+ INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Crown', 'ITEMS', 1);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(7, 'GOLD', 3);
  
- INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Dagger', 'ITEM', 1);
+ INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Dagger', 'ITEMS', 1);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(8, 'IRON', 1);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(8, 'STEEL', 2);
  
- INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Armour', 'ITEM', 1);
+ INSERT INTO forges_alloy_resources(cardname, resource_type_received, amount_received) VALUES ('Forge Armour', 'ITEMS', 1);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(9, 'STEEL', 2);
  INSERT INTO resources_given(forges_alloy_resources_id, resource, amount) VALUES(9, 'GOLD', 1);
  
