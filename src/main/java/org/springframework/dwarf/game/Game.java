@@ -1,8 +1,8 @@
 package org.springframework.dwarf.game;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 import javax.persistence.Column;
@@ -19,6 +19,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.dwarf.model.BaseEntity;
 import org.springframework.dwarf.player.Player;
 import org.springframework.dwarf.player.PlayerComparator;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -39,15 +40,16 @@ public class Game extends BaseEntity{
 	public Game () {
 		this.currentPhaseName = GamePhaseEnum.MINERAL_EXTRACTION;
 		this.currentRound = 1;
-		this.startDate = LocalDateTime.now();
+		this.startDate = new Date();
 		this.canResolveActions = true;
+		this.musterAnArmyEffect = false;
 	}
 	
 	public void setPhase(GamePhaseEnum gamePhaseName) {
 		this.currentPhaseName = gamePhaseName;
 	}
 	
-	public void phaseResolution(ApplicationContext applicationContext) {
+	public void phaseResolution(ApplicationContext applicationContext) throws Exception {
 		this.getPhase(applicationContext).phaseResolution(this);
 	}
 	
@@ -85,7 +87,7 @@ public class Game extends BaseEntity{
 	@Column(name = "CURRENTROUND")
 	Integer currentRound;
 	
-	@NotNull
+	//@NotNull
 	@OneToOne
 	@JoinColumn(name = "FIRSTPLAYER", referencedColumnName="id")
 	Player firstPlayer;
@@ -99,21 +101,30 @@ public class Game extends BaseEntity{
 	Player thirdPlayer;
 	
 	@NotNull
+	@DateTimeFormat(pattern="yyyy-MM-dd HH:mm:ss")
 	@Column(name = "STARTDATE")
-	LocalDateTime startDate;
+	Date startDate;
 	
+	@DateTimeFormat(pattern="yyyy-MM-dd HH:mm:ss")
 	@Column(name = "FINISHDATE")
-	LocalDateTime finishDate;
+	Date finishDate;
 	
 	@Column(name = "CANRESOLVEACTIONS")
-	boolean canResolveActions;
+	Boolean canResolveActions;
 	
-	// por alguna razon el @Getter no pilla el atributo, pero el @Setter si
-	public boolean getCanResolveActions() {
+	@Column(name = "MUSTERANARMYEFFECT")
+	Boolean musterAnArmyEffect;
+	
+	// @Getter no pilla el atributo, pero el @Setter si
+	public Boolean getCanResolveActions() {
 		return this.canResolveActions;
 	}
+	// @Getter no pilla el atributo, pero el @Setter si
+	public Boolean getMusterAnArmyEffect() {
+		return this.musterAnArmyEffect;
+	}
 	
-	public List<Player> getPlayersList(){
+	public List<Player> getPlayersList() {
 		List<Player> pList = new ArrayList<Player>();
 		
 		if(this.firstPlayer != null)
@@ -126,10 +137,30 @@ public class Game extends BaseEntity{
 		return pList;
 	}
 	
-	public void setPlayerPosition(List<Player> players) {
-		this.setFirstPlayer(players.get(0));
-		this.setSecondPlayer(players.get(1));
-		this.setThirdPlayer(players.get(2));
+	public void setPlayersPosition(List<Player> players) {
+		Integer listSize = players.size();
+		for(int i=0; i<3; i++) {
+			if(i <= listSize-1)
+				this.setPlayer(i, players.get(i));
+			else
+				this.setPlayer(i, null);
+		}
+	}
+	
+	private void setPlayer(int index, Player player) {
+		switch (index) {
+			case 0:
+				this.setFirstPlayer(player);
+				break;
+			case 1:
+				this.setSecondPlayer(player);
+				break;
+			case 2:
+				this.setThirdPlayer(player);
+				break;
+			default:
+				break;
+		}
 	}
 	
 	public List<Player> getTurnList(){
@@ -140,7 +171,8 @@ public class Game extends BaseEntity{
 	}
 	
     public Boolean allPlayersSet(){
-        return this.getPlayersList().size() == 3;
+    	// can start a game with 2 players
+        return this.getPlayersList().size() >= 2;
     }
     
     public Boolean isPlayerInGame(Player player) {

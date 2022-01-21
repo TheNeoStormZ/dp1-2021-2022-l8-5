@@ -18,18 +18,19 @@ package org.springframework.dwarf.mountainCard;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Optional;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.dwarf.mountain_card.MountainCard;
-import org.springframework.dwarf.mountain_card.MountainCardService;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
-@DataJpaTest(includeFilters = @ComponentScan.Filter(Service.class))
-class MountainCardServiceTests {                
-        @Autowired
+@DataJpaTest(includeFilters = @ComponentScan.Filter({ Service.class, Component.class }))
+class MountainCardServiceTests {
+	@Autowired
 	protected MountainCardService mountainCardService;
 
 	@Test
@@ -39,25 +40,36 @@ class MountainCardServiceTests {
 		assertThat(mountainCard.getYPosition()).isEqualTo(0);
 		assertThat(mountainCard.getName()).isEqualTo("Iron Seam");
 	}
-	
+
 	@Test
 	void ShouldFindAllMountainCards() {
 		Iterable<MountainCard> mountainCards = this.mountainCardService.findAll();
-		assertThat(mountainCards.spliterator().getExactSizeIfKnown()).isEqualTo(18);
+		assertThat(mountainCards.spliterator().getExactSizeIfKnown()).isEqualTo(54);
 	}
-	
+
 	@Test
 	void shouldFindByGroupCard() {
-		// mirar el numero de cartas que hay del tipo 2 cuando se actualice data.sql (actualmente 6)
-		List<MountainCard> mountainCards = mountainCardService.findByGroupCard(2);
-		assertThat(mountainCards.size()).isEqualTo(6);
+		List<MountainCard> mountainCards = mountainCardService.findByGroupCard(1);
+		assertThat(mountainCards.size()).isEqualTo(9);
 	}
-	
+
 	@Test
 	void shouldFindInitialCardByPosition() {
 		// Initial card with position (1,0)
 		MountainCard card = mountainCardService.findByMountainCardId(1).get();
 		MountainCard cardSearch = mountainCardService.findInitialCardByPosition(1, 0);
 		assertThat(cardSearch).isEqualTo(card);
+	}
+
+	@Test
+	@DisplayName("Delete a card")
+	void testDeleteMountainCard() {
+		Optional<MountainCard> mc = mountainCardService.findByMountainCardId(1);
+		if (mc.isPresent()) {
+			mountainCardService.delete(mc.get());
+			assertThat(mountainCardService.findByMountainCardId(1)).isEmpty();
+		} else {
+			System.out.println("MountainCard not found");
+		}
 	}
 }

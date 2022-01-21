@@ -9,9 +9,10 @@ import org.springframework.dwarf.board.Board;
 import org.springframework.dwarf.board.BoardCell;
 import org.springframework.dwarf.board.BoardCellService;
 import org.springframework.dwarf.board.BoardService;
-import org.springframework.dwarf.mountain_card.MountainCard;
-import org.springframework.dwarf.mountain_card.MountainDeck;
-import org.springframework.dwarf.mountain_card.MountainDeckService;
+import org.springframework.dwarf.mountainCard.MountainCard;
+import org.springframework.dwarf.mountainCard.MountainDeck;
+import org.springframework.dwarf.mountainCard.MountainDeckService;
+import org.springframework.dwarf.player.Player;
 import org.springframework.dwarf.web.LoggedUserController;
 import org.springframework.dwarf.worker.IllegalPositionException;
 import org.springframework.dwarf.worker.Worker;
@@ -32,15 +33,18 @@ public class MineralExtraction implements GamePhase{
     private BoardService boardService;
 	@Autowired
 	private WorkerService workerService;
+	@Autowired
+	private LoggedUserController loggedUserController;
 
 	@Override
     public void phaseResolution(Game game) {
     	
 		// runs only once
-		if(game.getFirstPlayer()!=LoggedUserController.loggedPlayer())
+		if(game.getFirstPlayer()!=loggedUserController.loggedPlayer())
 			return;
 		
 		this.removeWorkers(game);
+		this.deleteAidWorkers(game);
 		game.setCurrentPlayer(game.getTurnList().get(0));
 		
 		// picks two random cards
@@ -71,7 +75,7 @@ public class MineralExtraction implements GamePhase{
     	game.setPhase(GamePhaseEnum.ACTION_SELECTION);
     }
 	
-	private void removeWorkers(Game game) {
+	protected void removeWorkers(Game game) {
 		List<Worker> workersPlaced = workerService.findPlacedByGameId(game.getId());
 		Board board = gameService.findBoardByGameId(game.getId()).get();
 		for(Worker worker: workersPlaced) {
@@ -82,7 +86,14 @@ public class MineralExtraction implements GamePhase{
 		}
 	}
 	
-	private void setAndSaveWorker(Worker worker) {
+	protected void deleteAidWorkers(Game game) {
+		for (Player player : game.getPlayersList()) {
+			workerService.deletePlayerAidWorkers(player);
+		}
+		
+	}
+	
+	protected void setAndSaveWorker(Worker worker) {
 		worker.setXposition(null);
 		worker.setYposition(null);
 		worker.setStatus(false);
@@ -94,12 +105,13 @@ public class MineralExtraction implements GamePhase{
 		}
 	}
 	
-	private void setAndSaveBoardCell(BoardCell boardCell) {
+	protected void setAndSaveBoardCell(BoardCell boardCell) {
 		boardCell.setOccupiedBy(null);
+		boardCell.setIsDisabled(false);
 		boardCellService.saveBoardCell(boardCell);
 	}
     
-    private void setCard(MountainCard mountaincard, BoardCell boardcell) {
+    protected void setCard(MountainCard mountaincard, BoardCell boardcell) {
 		List<MountainCard> cellcards = boardcell.getMountaincards();
 		if (mountaincard.getXPosition().equals(boardcell.getXposition()) &&
 				mountaincard.getYPosition().equals(boardcell.getYposition())) {

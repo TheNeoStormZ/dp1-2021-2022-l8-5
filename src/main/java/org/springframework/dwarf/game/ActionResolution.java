@@ -2,6 +2,7 @@ package org.springframework.dwarf.game;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,12 +15,13 @@ import org.springframework.dwarf.board.Board;
 import org.springframework.dwarf.board.BoardCell;
 import org.springframework.dwarf.board.BoardCellActionsComparator;
 import org.springframework.dwarf.board.BoardCellService;
-import org.springframework.dwarf.mountain_card.CardType;
-import org.springframework.dwarf.mountain_card.MountainCard;
+import org.springframework.dwarf.mountainCard.CardType;
+import org.springframework.dwarf.mountainCard.MountainCard;
 import org.springframework.dwarf.player.Player;
 import org.springframework.dwarf.resources.ResourceType;
 import org.springframework.dwarf.resources.Resources;
 import org.springframework.dwarf.resources.ResourcesService;
+import org.springframework.dwarf.worker.WorkerService;
 import org.springframework.stereotype.Component;
 
 @StatePattern.ConcreteState
@@ -33,36 +35,47 @@ public class ActionResolution implements GamePhase{
     @Autowired
     private ResourcesService resourcesService;
     @Autowired
+    private WorkerService workerService;
+    @Autowired
     private ApplicationContext applicationContext;
     
     private static final int FINAL_GAME_ROUND = 6;
 
 	@Override
-	public void phaseResolution(Game game) {
-		// funcion service no testeada
+	public void phaseResolution(Game game) throws Exception {
 		List<BoardCell> cellsToResolve = this.getCellstoResolveActions(game);
 		
 		for(BoardCell cell: cellsToResolve) {
 			Player player = cell.getOccupiedBy();
 			MountainCard mountainCard = cell.getMountaincards().get(0);
-			// check orc raiders effect
-			if(this.canResolveAction(game, mountainCard))
-				mountainCard.cardAction(player, applicationContext);
+			if(this.canResolveAction(game, mountainCard) && !cell.getIsDisabled())
+				mountainCard.cardAction(player, applicationContext, false);
+
+				if (workerService.findNotPlacedAidByGameId(game.getId()).size() > 0) {
+					cell.setIsDisabled(true);
+					boardCellService.saveBoardCell(cell);
+					game.setPhase(GamePhaseEnum.ACTION_SELECTION);
+					gameService.saveGame(game);
+					game.phaseResolution(applicationContext);
+					return;
+				}
 		}
 		
 		game.setCanResolveActions(true);
-		// necesita testeo
+		game.setMusterAnArmyEffect(false);
+		game.setCurrentRound(game.getCurrentRound()+1);
 		this.updatePlayersPositions(game);
-		if(game.getCurrentRound() < FINAL_GAME_ROUND) {
+		
+		if(game.getCurrentRound() <= FINAL_GAME_ROUND && !this.hasFourItems(game)) {
 			game.setPhase(GamePhaseEnum.MINERAL_EXTRACTION);
 		} else {
-			// finalizar partida
+			game.setFinishDate(new Date());
 		}
 		
 	}
 	
-	private boolean canResolveAction(Game game, MountainCard mountainCard) {
-		boolean canResolve = game.getCanResolveActions();
+	protected Boolean canResolveAction(Game game, MountainCard mountainCard) {
+		Boolean canResolve = game.getCanResolveActions();
 		
 		// orc raiders ONLY avoid resolve MINE cards
 		if(!mountainCard.getCardType().equals(CardType.MINE) && !canResolve)
@@ -71,7 +84,13 @@ public class ActionResolution implements GamePhase{
 		return canResolve;
 	}
 	
-	private List<BoardCell> getCellstoResolveActions(Game game) {
+	protected Boolean hasFourItems(Game game) {
+		return resourcesService.findByGameId(game.getId()).stream()
+				.filter(resource -> resource.getItems() >= 4)
+				.collect(Collectors.toList()).size() >= 1;
+	}
+	
+	protected List<BoardCell> getCellstoResolveActions(Game game) {
 		Board board = gameService.findBoardByGameId(game.getId()).get();
 		
 		// defend cards always resolve action
@@ -86,7 +105,11 @@ public class ActionResolution implements GamePhase{
 	}
 	
 	public void updatePlayersPositions(Game game) {
-		List<Integer> points = new ArrayList<Integer>(List.of(0,0,0));
+		List<Integer> points = new ArrayList<Integer>();
+		for(int i=0; i<game.getPlayersList().size(); i++) {
+			points.add(0);
+		}
+		
 		Map<ResourceType, List<Integer>> resourcesAmount = this.getResourcesAmount(game);
 		
 		for(ResourceType type: List.of(ResourceType.STEEL, ResourceType.GOLD, ResourceType.ITEMS)) {
@@ -99,7 +122,7 @@ public class ActionResolution implements GamePhase{
 		this.updateGameWithPositions(points, game);
 	}
 	
-	private Map<ResourceType, List<Integer>> getResourcesAmount(Game game) {
+	protected Map<ResourceType, List<Integer>> getResourcesAmount(Game game) {
 		Map<ResourceType, List<Integer>> resourcesAmount = new HashMap<>();
 		
 		for(Player p: game.getPlayersList()) {
@@ -124,7 +147,7 @@ public class ActionResolution implements GamePhase{
 		return resourcesAmount;
 	}
 	
-	private List<Integer> addPoints(List<Integer> points, List<Integer> resourcesAmount) {
+	protected List<Integer> addPoints(List<Integer> points, List<Integer> resourcesAmount) {
 		Integer max = Collections.max(new ArrayList<Integer>(resourcesAmount));
 		
 		for(int i=0; i<resourcesAmount.size(); i++) {
@@ -136,7 +159,7 @@ public class ActionResolution implements GamePhase{
 		return points;
 	}
 	
-	private boolean getIsTie(List<Integer> points) {
+	protected Boolean getIsTie(List<Integer> points) {
 		Integer max = Collections.max(new ArrayList<Integer>(points));
 		Integer count = 0;
 		for(Integer point: points)
@@ -145,7 +168,7 @@ public class ActionResolution implements GamePhase{
 		return count > 1;
 	}
 	
-	private List<Integer> tieBreaker(List<Integer> points, Map<ResourceType, List<Integer>> resourcesAmount) {
+	protected List<Integer> tieBreaker(List<Integer> points, Map<ResourceType, List<Integer>> resourcesAmount) {
 		points = this.addPoints(points, resourcesAmount.get(ResourceType.BADGES));
 		if(this.getIsTie(points))
 			points = this.addPoints(points, resourcesAmount.get(ResourceType.IRON));
@@ -163,7 +186,7 @@ public class ActionResolution implements GamePhase{
 			players.set(i,game.getPlayersList().get(index));
 		}
 		
-		game.setPlayerPosition(players);
+		game.setPlayersPosition(players);
 	}
 	
 	@Override

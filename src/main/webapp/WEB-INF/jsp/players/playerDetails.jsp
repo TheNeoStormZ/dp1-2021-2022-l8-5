@@ -1,5 +1,6 @@
 <%@ page session="false" trimDirectiveWhitespaces="true" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
+<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="sec"
@@ -71,10 +72,10 @@
 	                    <c:out value="${game.thirdPlayer.username}"/>
 	            	</td>
 	     	         <td>
-	                    <c:out value="${game.startDate}"/>
+	                    <fmt:formatDate pattern="yyyy-MM-dd HH:mm:ss" value="${game.startDate}"/>
 	            	</td>
 	              <td>
-	                    <c:out value="${game.finishDate}"/>
+	                    <fmt:formatDate pattern="yyyy-MM-dd HH:mm:ss" value="${game.finishDate}"/>
 	            	</td>
 	            	  
 					</tr>       
@@ -120,6 +121,48 @@
 	        </tbody>
 	    </table>
     </c:if>
+    <sec:authorize access="hasAuthority('admin')">
+		<table class="table table-striped">
+			
+			<h3>Auditing</h3>
+			<thead>
+			<tr>
+				<th style="width: 150px;">Creator</th>
+				<th style="width: 150px;">Created on</th>
+				<th style="width: 150px;">Last modified By</th>
+				<th style="width: 150px;">Last modified on</th>
+			</tr>
+			</thead>
+		
+			<tbody>
+				<tr>
+					<td>
+						<c:if test="${not empty player.creator}">
+							<c:out value="${player.creator}"/>
+						</c:if>
+						<c:if test="${empty player.creator}">
+							Spring
+						</c:if> 
+					</td>
+					<td>
+						<c:if test="${not empty player.createdDateTime}">
+							<fmt:formatDate pattern="yyyy-MM-dd HH:mm:ss" value="${player.createdDateTime}"/>
+						</c:if> 
+					</td>
+					<td>
+						<c:if test="${not empty player.modifier}">
+							<c:out value="${player.modifier}"/>
+						</c:if>
+					</td>
+					<td>
+						<c:if test="${not empty player.lastModifiedDate}">
+							<fmt:formatDate pattern="yyyy-MM-dd HH:mm:ss" value="${player.lastModifiedDate}"/>
+						</c:if>
+					</td>	  
+				</tr> 
+			</tbody>
+		</table>
+	</sec:authorize>
     </div>
 </div>
 

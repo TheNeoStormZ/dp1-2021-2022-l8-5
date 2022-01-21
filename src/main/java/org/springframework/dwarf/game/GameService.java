@@ -2,12 +2,20 @@ package org.springframework.dwarf.game;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dwarf.board.Board;
-import org.springframework.dwarf.mountain_card.MountainDeck;
+import org.springframework.dwarf.board.BoardService;
+import org.springframework.dwarf.mountainCard.MountainDeck;
 import org.springframework.dwarf.player.Player;
+import org.springframework.dwarf.player.PlayerService;
+import org.springframework.dwarf.user.DuplicatedEmailException;
+import org.springframework.dwarf.user.DuplicatedUsernameException;
+import org.springframework.dwarf.user.InvalidEmailException;
+import org.springframework.dwarf.web.LoggedUserController;
+import org.springframework.dwarf.worker.WorkerService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +30,15 @@ public class GameService {
 	private GameRepository gameRepo;
 	
 	@Autowired
+	private PlayerService playerService;
+	@Autowired
+	private WorkerService workerService;
+	@Autowired
+	private BoardService boardService;
+	@Autowired
+	private LoggedUserController loggedUserController;
+	
+	@Autowired
 	public GameService(GameRepository gameRepository) {
 		this.gameRepo = gameRepository;
 	}
@@ -31,6 +48,7 @@ public class GameService {
 		return (int) gameRepo.count();
 	}
 	
+	@Transactional(readOnly = true)
 	public Iterable<Game> findAll() {
 		return gameRepo.findAll();
 	}
@@ -42,7 +60,9 @@ public class GameService {
 	
 	@Transactional(readOnly = true)
 	public List<Game> findGamesToJoin(){
-		return gameRepo.searchGamesToJoin();
+		List<Game> gamesToJoin = gameRepo.searchGamesToJoin();
+		return gamesToJoin.stream().filter(g -> this.findBoardByGameId(g.getId()).orElse(null) == null)
+				.collect(Collectors.toList());
 	}
 	
 	@Transactional(readOnly = true)
@@ -65,44 +85,75 @@ public class GameService {
 		return gameRepo.searchPlayerFinishedGames(player);
 	}
 	
+	@Transactional(readOnly = true)
 	public Optional<Board> findBoardByGameId(Integer gameId){
 		return gameRepo.searchBoardByGameId(gameId);
 	}
+	
+	@Transactional(readOnly = true)
+	public List<Game> findFinishedGames() {
+		return gameRepo.searchFinishedGames();
+	}
+	
+	@Transactional(readOnly = true)
+	public List<Game> findCurrentGames() {
+		List<Game> games = gameRepo.searchUnfinishedGames();
+		return games.stream()
+				.filter(game -> findBoardByGameId(game.getId()).isPresent())
+				.filter(game -> game.getPlayersList().size() > 1)
+				.collect(Collectors.toList());
+	}
   
+	@Transactional
 	public void delete(Game game) {
 		gameRepo.delete(game);
 	}
 	
+	@Transactional(readOnly = true)
 	public Optional<MountainDeck> searchDeckByGameId(Integer gameId) {
 		return gameRepo.searchDeckByGameId(gameId);
 	}
 	
-	public Player searchPlayerOneByGame(Integer gameId) {
-		return gameRepo.searchPlayerOneByGame(gameId);
-	}
-
-	public Player searchPlayerTwoByGame(Integer gameId) {
-		return gameRepo.searchPlayerTwoByGame(gameId);
-	}
-
-	public Player searchPlayerThreeByGame(Integer gameId) {
-		return gameRepo.searchPlayerThreeByGame(gameId);
-	}
-	
-	//All players from the game
-	public List<Player> searchPlayersByGame(Integer gameId) {		
-		return List.of(searchPlayerOneByGame(gameId), searchPlayerTwoByGame(gameId), searchPlayerThreeByGame(gameId));
-	}
-	
-	public void exit(Game game, Player loggedPlayer) throws DataAccessException {	
-		// the first player must delete the game when exit
-			if(this.amISecondPlayer(game, loggedPlayer)) {
-				game.setSecondPlayer(null);
-			}else if (this.amIThirdPlayer(game, loggedPlayer)) {
-				game.setThirdPlayer(null);
-			}
+	@Transactional
+	public void exit(Game game, Player playerToRemove) throws DataAccessException {
+		workerService.deletePlayerWorker(playerToRemove);
+		
+		List<Player> newPlayerList = game.getPlayersList();
+		newPlayerList.remove(playerToRemove);
+		
+		int turnPlayerToRemove = -1;
+		if(!this.findBoardByGameId(game.getId()).isEmpty())
+			turnPlayerToRemove = game.getTurnList().indexOf(playerToRemove);
+		
+		game.setPlayersPosition(newPlayerList);
+		
+		if(!this.findBoardByGameId(game.getId()).isEmpty()) {
+			this.setPlayersTurns(newPlayerList);
+			turnPlayerToRemove = turnPlayerToRemove%game.getPlayersList().size();
+			if(playerToRemove.equals(game.getCurrentPlayer()))
+				game.setCurrentPlayer(game.getTurnList().get(turnPlayerToRemove));
+		}
 		
 		gameRepo.save(game);
+	}
+	
+	protected void setPlayersTurns(List<Player> newPlayerList) {
+		for(int i=0; i<newPlayerList.size(); i++) {
+			Player player = newPlayerList.get(i);
+			player.setTurn(i+1);
+			try {
+				playerService.savePlayer(player);
+			} catch (DataAccessException | DuplicatedUsernameException | DuplicatedEmailException
+					| InvalidEmailException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	@Transactional
+	public void kickOutInactives(Game game) {
+		if(loggedUserController.loggedPlayer().equals(game.getCurrentPlayer()))
+			this.exit(game, game.getCurrentPlayer());
 	}
 	
 	@Transactional(rollbackFor = CreateGameWhilePlayingException.class)
@@ -132,13 +183,24 @@ public class GameService {
 		this.saveGame(game);
 	}
 	
-	private Boolean amISecondPlayer(Game game, Player player){
-        return game.getPlayerPosition(player) == 1;
-    }
-    
-    private Boolean amIThirdPlayer(Game game, Player player){
-        return game.getPlayerPosition(player) == 2;
-    }
+	@Transactional(rollbackFor = CreateGameWhilePlayingException.class)
+	public void finishGame(Game game) throws DataAccessException, CreateGameWhilePlayingException {
+		if(this.findBoardByGameId(game.getId()).isEmpty())
+			return;
+		
+		Board board = this.findBoardByGameId(game.getId()).get();
+		
+		this.deleteAllWorkers(game);
+		boardService.delete(board);
+		
+		this.saveGame(game);
+	}
+	
+	protected void deleteAllWorkers(Game game) {
+		for(Player player: game.getPlayersList()) {
+			workerService.deletePlayerWorker(player);
+		}
+	}
     
     public Integer getCurrentGameId(Player player) {
     	return gameRepo.searchPlayerIsInGame(player);

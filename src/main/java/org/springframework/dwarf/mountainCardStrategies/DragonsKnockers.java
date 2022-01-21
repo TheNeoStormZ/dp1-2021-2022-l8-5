@@ -9,27 +9,31 @@ import org.springframework.dwarf.resources.Resources;
 import org.springframework.dwarf.resources.ResourcesService;
 import org.springframework.dwarf.web.LoggedUserController;
 import org.springframework.stereotype.Component;
+
 import org.springframework.dwarf.card.StrategyName;
 import org.springframework.dwarf.game.Game;
 import org.springframework.dwarf.game.GameService;
+
 
 @StrategyPattern.ConcreteStrategy
 @Component
 public class DragonsKnockers implements CardStrategy{
 	
-	private ResourceType resourceType;
-	private Integer amount;
+	protected ResourceType resourceType;
+	protected Integer amount;
 	
 	@Autowired
 	private GameService gameService;
 	@Autowired
 	private ResourcesService resourcesService;
+	@Autowired
+	private LoggedUserController loggedUserController;
 	
 	@Override
 	public void actions(Player player, String cardName) {
-		Player loggedUser = LoggedUserController.loggedPlayer();
+		Player loggedUser = loggedUserController.loggedPlayer();
 		Game game = gameService.findByGameId(gameService.getCurrentGameId(loggedUser)).get();
-		boolean defended = player != null;
+		Boolean defended = player != null || game.getMusterAnArmyEffect();
 		
 		if(!defended) {
 			this.setResources(cardName);
@@ -38,16 +42,18 @@ public class DragonsKnockers implements CardStrategy{
 				this.removeResources(p, game);
 			}
 		} else {
+			if(game.getMusterAnArmyEffect())
+				return;
 			Resources playerDefenderResources = resourcesService.findByPlayerIdAndGameId(player.getId(),game.getId()).get();
 			try {
-				playerDefenderResources.setResource(ResourceType.BADGES, 1);
+				playerDefenderResources.addResource(ResourceType.BADGES, 1);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 		}
 	}
 	
-	private void setResources(String cardName) {
+	protected void setResources(String cardName) {
 		if(cardName.equals("Great Dragon")) {
 			this.resourceType = ResourceType.GOLD;
 			this.amount = null; // null means all amount the player has
@@ -60,13 +66,13 @@ public class DragonsKnockers implements CardStrategy{
 		}
 	}
 	
-	private void removeResources(Player player, Game game) {
+	protected void removeResources(Player player, Game game) {
 		Resources playerResources = resourcesService.findByPlayerIdAndGameId(player.getId(),game.getId()).get();
 		if(this.amount == null)
 			this.amount = playerResources.getGold()*-1;
 		
 		try {
-			playerResources.setResource(resourceType, amount);
+			playerResources.addResource(resourceType, amount);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

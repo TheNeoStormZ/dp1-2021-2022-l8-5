@@ -18,16 +18,19 @@ import org.springframework.dwarf.game.GameService;
 @StrategyPattern.ConcreteStrategy
 @Component
 public class OrcRaiders implements CardStrategy{
+	
 	@Autowired
 	private GameService gameService;
 	@Autowired
 	private ResourcesService resourcesService;
+	@Autowired
+	private LoggedUserController loggedUserController;
 	
 	@Override
-	public void actions(Player player, String cardName) {
-		Player loggedUser = LoggedUserController.loggedPlayer();
+	public void actions(Player player, String cardName) throws Exception {
+		Player loggedUser = loggedUserController.loggedPlayer();
 		Game game = gameService.findByGameId(gameService.getCurrentGameId(loggedUser)).get();
-		boolean defended = player != null;
+		Boolean defended = player != null || game.getMusterAnArmyEffect();
 		
 		if(!defended) {
 			game.setCanResolveActions(false);
@@ -40,12 +43,10 @@ public class OrcRaiders implements CardStrategy{
 				e.printStackTrace();
 			}
 		} else {
+			if(game.getMusterAnArmyEffect())
+				return;
 			Resources playerDefenderResources = resourcesService.findByPlayerIdAndGameId(player.getId(),game.getId()).get();
-			try {
-				playerDefenderResources.setResource(ResourceType.BADGES, 1);
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
+			playerDefenderResources.addResource(ResourceType.BADGES, 1);
 		}
 	}
 

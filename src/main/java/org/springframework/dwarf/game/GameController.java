@@ -1,14 +1,18 @@
 package org.springframework.dwarf.game;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dwarf.board.Board;
 import org.springframework.dwarf.player.Player;
-import org.springframework.dwarf.player.PlayerService;
+import org.springframework.dwarf.resources.Resources;
+import org.springframework.dwarf.resources.ResourcesService;
 import org.springframework.dwarf.web.LoggedUserController;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
@@ -27,30 +31,58 @@ import org.springframework.web.servlet.ModelAndView;
 public class GameController {
 	
 	private GameService gameService;
-	private PlayerService playerService;
+	private ResourcesService resourcesService;
+	private LoggedUserController loggedUserController;
 
 	@Autowired
-	public GameController(GameService gameService, PlayerService playerService) {
+	public GameController(GameService gameService, ResourcesService resourcesService, LoggedUserController loggedUserController) {
 		this.gameService = gameService;
-		this.playerService = playerService;
+		this.resourcesService = resourcesService;
+		this.loggedUserController=loggedUserController;
 	}
 	
-	@GetMapping()
-	public String listGames(ModelMap modelMap) {
+	@GetMapping("/listGames/finished")
+	public String listFinishedGames(ModelMap modelMap) {
 		String view = "games/listGames";
-		Iterable<Game> games = gameService.findAll();
+		
+		List<Game> games = gameService.findFinishedGames();
+		List<Integer> indices = new ArrayList<Integer>();
+		for(int i=0; i<games.size(); i++)
+			indices.add(i);
+		
+		modelMap.addAttribute("indices", indices);
 		modelMap.addAttribute("games", games);
+		modelMap.addAttribute("type", "Finished");
 		return view;
 	}
 	
+	@GetMapping("/listGames/current")
+	public String listCurrentGames(ModelMap modelMap) {
+		String view = "games/listGames";
+		
+		List<Game> games = gameService.findCurrentGames();
+		List<Integer> boardsId = games.stream()
+				.map(game -> gameService.findBoardByGameId(game.getId()).get().getId())
+				.collect(Collectors.toList());
+
+		List<Integer> indices = new ArrayList<Integer>();
+		for(int i=0; i<games.size(); i++)
+			indices.add(i);
+		
+		modelMap.addAttribute("indices", indices);
+		modelMap.addAttribute("games", games);
+		modelMap.addAttribute("boardsId", boardsId);
+		modelMap.addAttribute("type", "Current");
+		return view;
+	}
 	
 	@GetMapping(path="/{gameId}/delete")
 	public String deleteGame(@PathVariable("gameId") Integer gameId, ModelMap modelMap) {
 		Optional<Game> game = gameService.findByGameId(gameId);
 		
 		if (game.isPresent()) {
-			// only first player can delete a game
-			if(this.amIFirstPlayer(game.get())) {
+			// only the last player can delete a game
+			if(game.get().getPlayersList().size() <= 1) {
 				gameService.delete(game.get());
 				modelMap.addAttribute("message", "game deleted!");
 			}
@@ -64,7 +96,7 @@ public class GameController {
     @GetMapping(path="/{gameId}/exit")
     public String exitGame(@PathVariable("gameId") Integer gameId, ModelMap modelMap){
         Optional<Game> game = gameService.findByGameId(gameId);
-        Player loggedPlayer = LoggedUserController.loggedPlayer();
+        Player loggedPlayer = loggedUserController.loggedPlayer();
         
         if(game.isPresent()){
         	gameService.exit(game.get(), loggedPlayer);
@@ -78,9 +110,9 @@ public class GameController {
 	@GetMapping("/searchGames")
 	public String searchGames(ModelMap modelMap) {
 		String view  = "games/searchOrCreateGames";
-		Player currentPlayer = this.loggedPlayer();
+		Player currentPlayer = loggedUserController.loggedPlayer();
 		Integer currentGameId = gameService.getCurrentGameId(currentPlayer);
-		Optional<Board> currentBoard =gameService.findBoardByGameId(currentGameId);
+		Optional<Board> currentBoard = gameService.findBoardByGameId(currentGameId);
 		if (gameService.alreadyInGame(currentPlayer) && currentBoard.isPresent()){			
 			return "redirect:/boards/"+ currentBoard.get().getId() +"/game/"+currentGameId;
 		}
@@ -96,7 +128,7 @@ public class GameController {
 	@GetMapping(path="/waitingPlayers")
 	public String initCreateGame(ModelMap modelMap) {
 		Game game = new Game();
-		Player loggedPlayer = LoggedUserController.loggedPlayer();
+		Player loggedPlayer = loggedUserController.loggedPlayer();
 		
 		game.setFirstPlayer(loggedPlayer);
 		game.setCurrentPlayer(loggedPlayer);
@@ -121,7 +153,7 @@ public class GameController {
 		String view = "games/waitingPlayers";
 		
 		Game game = gameService.findByGameId(gameId).get();
-        Player loggedPlayer = LoggedUserController.loggedPlayer();
+        Player loggedPlayer = loggedUserController.loggedPlayer();
         
         // if first player started the game, go to board
         Optional<Board> board = gameService.findBoardByGameId(gameId);
@@ -145,18 +177,33 @@ public class GameController {
 		return view;
 	}
 	
-	private Player loggedPlayer() {
-		String playerUsername = LoggedUserController.returnLoggedUserName();
-		Player player = playerService.findPlayerByUserName(playerUsername);
-
-		return player;
+	@GetMapping(path="{gameId}/gameClassification")
+	public String gameClassication(@PathVariable("gameId") Integer gameId, ModelMap modelMap) {
+		String view = "games/gameClassification";
+		
+		Game game = gameService.findByGameId(gameId).get();
+		modelMap = this.setPlayersData(modelMap, game);
+		
+		try {
+			gameService.finishGame(game);
+		} catch (DataAccessException | CreateGameWhilePlayingException e) {
+			e.printStackTrace();
+		}
+		
+		return view;
 	}
-
-    private Boolean amIFirstPlayer(Game game){
-        Boolean amI = false;
-        if(game.firstPlayer != null)
-            amI = game.firstPlayer.getId() == LoggedUserController.loggedPlayer().getId();
-
-        return amI;
+	
+	private ModelMap setPlayersData(ModelMap modelMap, Game game) {
+    	
+    	for (int i = 0; i < game.getPlayersList().size(); i++) {
+    		Player p = game.getPlayersList().get(i);
+    		if (p != null) {
+	        	modelMap.addAttribute("player" + (i+1), p);
+	        	Resources resourcesPlayer = resourcesService.findByPlayerIdAndGameId(p.getId(), game.getId()).get();
+	        	modelMap.addAttribute("resourcesPlayer" + (i+1), resourcesPlayer);
+    		}
+    	}
+    	
+    	return modelMap;
     }
 }

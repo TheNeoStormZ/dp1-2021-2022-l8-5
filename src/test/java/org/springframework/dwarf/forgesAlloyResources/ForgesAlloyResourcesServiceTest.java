@@ -11,36 +11,39 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.dwarf.forgesAlloy.ForgesAlloyResources;
 import org.springframework.dwarf.forgesAlloy.ForgesAlloyResourcesService;
 import org.springframework.dwarf.resources.ResourceType;
+import org.springframework.dwarf.web.LoggedUserController;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
-@DataJpaTest(includeFilters = @ComponentScan.Filter(Service.class))
+@DataJpaTest(includeFilters = @ComponentScan.Filter({ Service.class, Component.class }))
 public class ForgesAlloyResourcesServiceTest {
-	
+
 	@Autowired
 	private ForgesAlloyResourcesService forgeAlloyResourceService;
-	
+	@Autowired
+	private LoggedUserController loggedUserController;
+
 	@Test
 	@DisplayName("Find ForgesAlloyResources by card name")
 	void testFindByCardName() {
 		String cardName = "Alloy Steel";
-		
+
 		ForgesAlloyResources forgesAlloyResources = this.forgeAlloyResourceService.findByCardName(cardName);
-		
+
 		assertThat(forgesAlloyResources.getResourcesReceived().getResource()).isEqualTo(ResourceType.STEEL);
 	}
-	
+
 	@Test
 	@DisplayName("Find ForgesAlloyResources by card name (Negative)")
 	void testFindByCardNameNeg() {
 		String cardName = "Alloy Steel No";
-		
+
 		ForgesAlloyResources forgesAlloyResources = this.forgeAlloyResourceService.findByCardName(cardName);
-		
-		 assertThrows(NullPointerException.class, () -> {
-			 forgesAlloyResources.getResourcesReceived().getResource();
-		    });
-		
+
+		assertThrows(NullPointerException.class, () -> {
+			forgesAlloyResources.getResourcesReceived().getResource();
+		});
+
 	}
-	
-	
+
 }

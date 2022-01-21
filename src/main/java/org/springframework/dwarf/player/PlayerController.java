@@ -58,11 +58,13 @@ public class PlayerController {
 
 	private final PlayerService playerService;
 	private final GameService gameService;
+	private final LoggedUserController loggedUserController;
 
 	@Autowired
-	public PlayerController(PlayerService playerService, UserService userService, AuthoritiesService authoritiesService, GameService gameService) {
+	public PlayerController(PlayerService playerService, UserService userService, AuthoritiesService authoritiesService, GameService gameService, LoggedUserController loggedUserController) {
 		this.playerService = playerService;
 		this.gameService = gameService;
+		this.loggedUserController = loggedUserController;
 	}
 
 	@InitBinder
@@ -79,8 +81,9 @@ public class PlayerController {
 	}
 
 	@PostMapping(value = "/players/new")
-	public String processCreationForm(@Valid Player player, BindingResult result) throws DataAccessException, DuplicatedUsernameException, DuplicatedEmailException {
+	public String processCreationForm(@Valid Player player, BindingResult result, ModelMap modelMap) throws DataAccessException, DuplicatedUsernameException, DuplicatedEmailException {
 		if (result.hasErrors()) {
+			modelMap.put("player", player);
 			return VIEWS_PLAYER_CREATE_OR_UPDATE_FORM;
 		}
 		else {
@@ -159,7 +162,7 @@ public class PlayerController {
 	
 	@GetMapping(value = "/editProfile")
 	public String initUpdateMeForm(Model model) {
-		String username = LoggedUserController.returnLoggedUserName();
+		String username = loggedUserController.returnLoggedUserName();
 		Player player = playerService.findPlayerByUserName(username);
 		model.addAttribute("player",player);
 
@@ -168,7 +171,7 @@ public class PlayerController {
 	
 	@PostMapping(value = "/editProfile")
 	public String processUpdateMeForm(@Valid Player player, BindingResult result) throws DataAccessException, DuplicatedUsernameException, DuplicatedEmailException {
-		String username = LoggedUserController.returnLoggedUserName();
+		String username = loggedUserController.returnLoggedUserName();
 		Integer playerid = playerService.findPlayerByUserName(username).getId();
 		if (result.hasErrors()) {
 			return VIEWS_PLAYER_CREATE_OR_UPDATE_FORM;
@@ -221,7 +224,7 @@ public class PlayerController {
 	
 	@GetMapping("/myProfile")
 	public ModelAndView showMyProfile() {
-		String username = LoggedUserController.returnLoggedUserName();
+		String username = loggedUserController.returnLoggedUserName();
 		Integer playerid = playerService.findPlayerByUserName(username).getId();
 		
 		ModelAndView mav = showPlayer(playerid);

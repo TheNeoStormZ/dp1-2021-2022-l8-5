@@ -1,8 +1,10 @@
 package org.springframework.dwarf.board;
 
+import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
@@ -15,11 +17,15 @@ import org.springframework.dwarf.game.CreateGameWhilePlayingException;
 import org.springframework.dwarf.game.Game;
 import org.springframework.dwarf.game.GamePhaseEnum;
 import org.springframework.dwarf.game.GameService;
+import org.springframework.dwarf.mountainCard.MountainCard;
 import org.springframework.dwarf.player.Player;
 import org.springframework.dwarf.player.PlayerService;
 import org.springframework.dwarf.resources.ResourceType;
 import org.springframework.dwarf.resources.Resources;
 import org.springframework.dwarf.resources.ResourcesService;
+import org.springframework.dwarf.specialCard.SpecialCard;
+import org.springframework.dwarf.specialCard.SpecialDeck;
+import org.springframework.dwarf.specialCard.SpecialDeckService;
 import org.springframework.dwarf.user.DuplicatedEmailException;
 import org.springframework.dwarf.user.DuplicatedUsernameException;
 import org.springframework.dwarf.user.InvalidEmailException;
@@ -55,9 +61,16 @@ public class BoardController {
     private PlayerService playerService;
     @Autowired
     private BoardCellService boardCellService;
+    @Autowired
+    private SpecialDeckService specialDeckService;
+	@Autowired
+	private LoggedUserController loggedUserController;
     
     @Autowired
     private ApplicationContext applicationContext;
+    
+    private static final Integer REFRESH_TIME = 4;
+    private static final LocalTime INACTIVITY_TIMER = LocalTime.of(0, 2);
     
     private boolean boardPageLoaded;
 	
@@ -77,7 +90,6 @@ public class BoardController {
 		for (Player p : game.getPlayersList()) {
 			resourcesService.createPlayerResource(p, game);
 			workerService.createPlayerWorkers(p, game, i);
-			//modelMap.addAttribute("imgPlayer" + i, i);
 			i = i+1;
 		}
 		this.setTurns(game.getPlayersList());
@@ -89,7 +101,7 @@ public class BoardController {
 	    
 	}
     
-    private void setTurns(List<Player> players) {
+    protected void setTurns(List<Player> players) {
     	Integer turn = 1;
     	for(Player player: players) {
     		player.setTurn(turn);
@@ -106,26 +118,40 @@ public class BoardController {
     }
     
     @GetMapping("{boardId}/game/{gameId}")
-    public String boardGame(@PathVariable("gameId") Integer gameId, @PathVariable("boardId") Integer boardId, ModelMap modelMap, HttpServletResponse response) {
-    	response.addHeader("REFRESH", "4");
+    public String boardGame(@PathVariable("gameId") Integer gameId, @PathVariable("boardId") Integer boardId, ModelMap modelMap, HttpServletResponse response) throws Exception {
+    	response.addHeader("REFRESH", REFRESH_TIME.toString());
     	String view = "/board/board";
-    
+    	
     	Game game = gameService.findByGameId(gameId).get();
+    	
+    	if(game.getPlayersList().size() <= 1) {
+    		game.setFinishDate(new Date());
+    		gameService.saveGame(game);
+    	}
+    	
+    	if(game.getFinishDate() != null)
+   			return "redirect:/games/" + gameId + "/gameClassification";
+    	
     	Board board = boardService.findByBoardId(boardId).get();
-		Player myplayer = LoggedUserController.loggedPlayer();
+    	String kickOutRedirect = this.updateInactivityTimer(board, game);
+    	if(!kickOutRedirect.equals(""))
+    		return kickOutRedirect;
+		Player myplayer = loggedUserController.loggedPlayer();
 		
-		modelMap = this.setHasEnoughBadges(modelMap, myplayer.getId(), gameId);
+		if(game.getPlayersList().contains(myplayer)) {
+			modelMap = this.setCanUseSpecial(modelMap, myplayer.getId(), gameId);
+			modelMap = this.setMyWorkerForPost(modelMap, myplayer.getId(), gameId);
+			modelMap = this.hasAidWorkers(modelMap, gameId);
+		}
 		
-		modelMap = this.setMyWorkerForPost(modelMap, myplayer.getId(), gameId);
-		modelMap = this.hasAidWorkers(modelMap, gameId);
 
     	modelMap.addAttribute("myplayer", myplayer);
     	modelMap.addAttribute("board", board);
     	modelMap.addAttribute("game", game);
     	modelMap.addAttribute("phaseName", game.getCurrentPhaseName().toString());
     	
-    	modelMap.addAttribute("xpos", List.of(1,2,3));
-    	modelMap.addAttribute("ypos", List.of(0,1,2));
+    	modelMap.addAttribute("xpos",List.of(1,2,3));
+    	modelMap.addAttribute("ypos",List.of(0,1,2));
     	
     	modelMap = this.setPlayersData(modelMap, game);
 	
@@ -138,15 +164,36 @@ public class BoardController {
 		} catch (DataAccessException | CreateGameWhilePlayingException e) {
 			e.printStackTrace();
 		}
-    	
+   		
     	if(!this.boardPageLoaded)
     		this.boardPageLoaded = true;
     	
     	return view;
     }
     
-    private ModelMap setHasEnoughBadges(ModelMap modelMap, int pid, int gid) {
+    private String updateInactivityTimer(Board board, Game game) {
+    	if(game.getCurrentPhaseName().equals(GamePhaseEnum.ACTION_SELECTION)
+    			&& game.getFirstPlayer().equals(loggedUserController.loggedPlayer())) {
+    		LocalTime updateTimer = board.getInactivityTimer().plusSeconds(-REFRESH_TIME);
+	    	board.setInactivityTimer(updateTimer);
+	    	boardService.saveBoard(board);
+    	}
+    	
+    	if(INACTIVITY_TIMER.isBefore(board.getInactivityTimer()) || board.getInactivityTimer().equals(LocalTime.of(0, 0))) {
+    		board.setInactivityTimer(INACTIVITY_TIMER);
+    		boardService.saveBoard(board);
+    		gameService.kickOutInactives(game);
+    		return "redirect:/games/searchGames";
+    	}
+    		
+    	return "";
+    }
+    
+    private ModelMap setCanUseSpecial(ModelMap modelMap, int pid, int gid) {
     	Resources myresources = resourcesService.findByPlayerIdAndGameId(pid, gid).get();
+    	List<Worker> myavailableworkers = workerService.findNotPlacedByPlayerIdAndGameId(pid, gid).stream().collect(Collectors.toList());
+    	modelMap.addAttribute("hasEnoughWorkers", myavailableworkers.size()>=2);
+    	modelMap.addAttribute("hasOneWorker", myavailableworkers.size()==1);
 		modelMap.addAttribute("canPay", myresources.getBadges()>=4);
     	return modelMap;
     }
@@ -169,7 +216,12 @@ public class BoardController {
 	        	modelMap.addAttribute("player" + (i+1), p);
 	        	Resources resourcesPlayer = resourcesService.findByPlayerIdAndGameId(p.getId(), game.getId()).get();
 	        	modelMap.addAttribute("resourcesPlayer" + (i+1), resourcesPlayer);
-	        	workers.addAll(workerService.findByPlayerId(p.getId()));
+	        	List<Worker> playerWorkers = workerService.findByPlayerId(p.getId()).stream().collect(Collectors.toList());
+	        	workers.addAll(playerWorkers);
+	        	List<Worker> notPlaced = workerService.findNotPlacedByPlayerIdAndGameId(p.getId(), game.getId());
+	        	Worker playerWorker = playerWorkers.get(0);
+	        	modelMap.addAttribute("player" + (i+1) + "worker", playerWorker);
+	        	modelMap.addAttribute("remainingWorkersPlayer" + (i+1), notPlaced.size());
     		}
     	}
     	modelMap.addAttribute("workers" , workers);
@@ -185,12 +237,11 @@ public class BoardController {
     
     
     @PostMapping("{boardId}/game/{gameId}")
-    public String postWorker(@Valid Worker myworker, @RequestParam String pos, @RequestParam(required = false) String pay, @PathVariable("gameId") Integer gameId, @PathVariable("boardId") Integer boardId, BindingResult result, Error errors) {
+    public String postWorker(@Valid Worker myworker, @RequestParam String pos, @RequestParam(required = false) String pay, @PathVariable("gameId") Integer gameId, @PathVariable("boardId") Integer boardId, BindingResult result, Error errors) throws Exception {
 		Game game = gameService.findByGameId(gameId).get();
-		game.phaseResolution(this.applicationContext);
-		
+		String redirect = "/board/board";
 		if (result.hasErrors()) {
-			return "/board/board";
+			return redirect;
 		}
 		else {
 			//parsear pos, settear al worker myworker las posiciones "x" e "y" obtenidas de pos
@@ -199,33 +250,35 @@ public class BoardController {
 			Integer posy = Integer.parseInt(posxy[1]);
 			myworker.setXposition(posx);
 			myworker.setYposition(posy);
-			String username = LoggedUserController.returnLoggedUserName();
+			String username = loggedUserController.returnLoggedUserName();
 			Player player = playerService.findPlayerByUserName(username);
 			List<Worker> workersNotPlaced = workerService.findNotPlacedByPlayerIdAndGameId(player.getId(), game.getId());
 			
 			if (posx == 0) {
 				Boolean useBadges = (pay==null) ? false : true;
-				return updatingWorkerSpecial(workersNotPlaced, myworker, useBadges, boardId, gameId, errors,result);
+				redirect = updatingWorkerSpecial(player, workersNotPlaced, myworker, useBadges, boardId, gameId, errors,result);
 			} else {
-				return updatingWorker(workersNotPlaced.get(0), myworker, boardId, gameId, errors,result);
+				redirect = updatingWorker(workersNotPlaced.get(0), myworker, boardId, gameId, errors,result);
 			}
 			
 		}
+		
+		game.phaseResolution(this.applicationContext);
+		return redirect;
     	
     }
     
-    private String updatingWorkerSpecial(List<Worker> workers, Worker myworker, Boolean useBadges, Integer boardId, Integer gameId, Error errors, BindingResult result) {
+    private String updatingWorkerSpecial(Player player, List<Worker> workers, Worker myworker, Boolean useBadges, Integer boardId, Integer gameId, Error errors, BindingResult result) throws Exception {
     	String redirect = "redirect:/boards/"+ boardId +  "/game/"+gameId;
     	
     	if (useBadges) {
     		Worker workerFound = workers.get(0);
     		redirect = updateWorker(myworker, workerFound, result, redirect);
     		
-    		Player player = workerFound.getPlayer();
     		Resources r = resourcesService.findByPlayerIdAndGameId(player.getId(), gameId).get();
     		
     		try {
-				r.setResource(ResourceType.BADGES, -4);
+				r.addResource(ResourceType.BADGES, -4);
 				resourcesService.saveResources(r);
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -237,9 +290,42 @@ public class BoardController {
         	}
     	}
 
-    	//ejecutar la action
+    	//ejecutar la acción
     	
+    	List<SpecialDeck> specialDecks = boardService.findSpecialDeckByBoardId(boardId);
+    	SpecialDeck currentSpecialDeck = specialDecks.get(myworker.getYposition());
+
+    	SpecialCard cardToExecute = executeSpecialAction(currentSpecialDeck, player);
+    	MountainCard backCard = cardToExecute.getBackCard();
+    	placeBackCard(boardId, backCard);
+
     	return redirect;
+    }
+    
+    protected SpecialCard executeSpecialAction(SpecialDeck currentSpecialDeck, Player player) throws Exception {
+    	SpecialCard cardToExecute = currentSpecialDeck.getSpecialCard().remove(0);
+    	cardToExecute.cardAction(player, applicationContext, true);
+    	specialDeckService.saveSpecialDeck(currentSpecialDeck);
+    	return cardToExecute;
+    }
+    
+    private void placeBackCard(Integer boardId, MountainCard backCard) {
+    	Board board = boardService.findByBoardId(boardId).get();
+    	List<BoardCell> boardcells = board.getBoardCells();	
+    	setCard(backCard, boardcells);
+    	boardService.saveBoard(board);
+    }
+    
+    private void setCard(MountainCard mountaincard, List<BoardCell> boardcells) {
+    	for (BoardCell boardcell: boardcells) {
+			List<MountainCard> cellcards = boardcell.getMountaincards();
+			if (mountaincard.getXPosition().equals(boardcell.getXposition()) &&
+					mountaincard.getYPosition().equals(boardcell.getYposition())) {
+				cellcards.add(0, mountaincard);
+				boardcell.setMountaincards(cellcards);
+				boardCellService.saveBoardCell(boardcell);
+			}
+		}
     }
     
     private String updateWorker(Worker myworker, Worker workerFound, BindingResult result, String redirect) {
@@ -258,13 +344,13 @@ public class BoardController {
 		
 		String redirect = "redirect:/boards/"+ boardId +  "/game/"+gameId;
 		redirect = updateWorker(myworker, workerFound, result, redirect);
-		BoardCell boardCell = boardCellService.findByPosition(workerFound.getXposition(), workerFound.getYposition());
+		BoardCell boardCell = boardCellService.findByPosition(workerFound.getXposition(), workerFound.getYposition(), boardId);
 	
 		if(boardCell.isCellOccupied()){
 			return errors.getMessage();
 		}
 
-		boardCell.setOccupiedBy(LoggedUserController.loggedPlayer());
+		boardCell.setOccupiedBy(loggedUserController.loggedPlayer());
 		this.boardCellService.saveBoardCell(boardCell);
 		this.boardService.saveBoard(boardService.findByBoardId(boardId).get());
 		

@@ -50,21 +50,22 @@ public class ForgesAlloy implements CardStrategy{
 				playerResources = this.giveResources(playerResources);
 				playerResources = this.receiveResources(playerResources);
 				resourcesService.saveResources(playerResources);
+				
+				if(!cardName.equals("Alloy Steel")) {
+					if(player.getTurn().equals(1))
+						changePlayerNext(game);
+				}
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
-		}
-		
-		if(!cardName.equals("Alloy Steel")) {
-			if(player.getTurn().equals(1))
-				changePlayerNext(game);
 		}
 	}
 	
 	protected void changePlayerNext(Game game) {
 		List<Player> turn = game.getTurnList();
 		for(Player p:turn) {
-			p.setTurn((p.getTurn()%3)+1);
+			// turns start with 1
+			p.setTurn((p.getTurn()%turn.size())+1);
 			try {
 				playerService.savePlayer(p);
 			} catch (DataAccessException | DuplicatedUsernameException | DuplicatedEmailException
@@ -86,27 +87,17 @@ public class ForgesAlloy implements CardStrategy{
 		return true;
 	}
 	
-	private Resources giveResources(Resources playerResources) {
+	protected Resources giveResources(Resources playerResources) throws Exception{
 		for(ResourceAmount rAmount: far.getResourcesGiven()) {
-			try {
-				playerResources.setResource(rAmount.getResource(), rAmount.getAmount()*-1);
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
+			playerResources.addResource(rAmount.getResource(), rAmount.getAmount()*-1);
 		}
 		
 		return playerResources;
 	}
 	
-	private Resources receiveResources(Resources playerResources) {
+	protected Resources receiveResources(Resources playerResources) throws Exception {
 		ResourceAmount receive = far.getResourcesReceived();
-		
-		try {
-			playerResources.setResource(receive.getResource(), receive.getAmount());
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		
+		playerResources.addResource(receive.getResource(), receive.getAmount());
 		return playerResources;
 	}
 

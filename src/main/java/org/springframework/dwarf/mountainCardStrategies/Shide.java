@@ -21,41 +21,31 @@ public class Shide implements CardStrategy{
 	private GameService gameService;
 	@Autowired
 	private ResourcesService resourcesService;
+	@Autowired
+	private LoggedUserController loggedUserController;
 	
 	@Override
-	public void actions(Player player, String cardName) {
-		Player loggedUser = LoggedUserController.loggedPlayer();
+	public void actions(Player player, String cardName) throws Exception {
+		Player loggedUser = loggedUserController.loggedPlayer();
 		Game game = gameService.findByGameId(gameService.getCurrentGameId(loggedUser)).get();
-		boolean defended = player != null;
+		Boolean defended = player != null || game.getMusterAnArmyEffect();
 		
 		if(!defended) {
 			for(Player p: game.getPlayersList()) {
 				this.exchangeResources(p, game);
 			}
 		} else {
+			if(game.getMusterAnArmyEffect())
+				return;
 			Resources playerDefenderResources = resourcesService.findByPlayerIdAndGameId(player.getId(),game.getId()).get();
-			try {
-				playerDefenderResources.setResource(ResourceType.BADGES, 1);
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
+			playerDefenderResources.addResource(ResourceType.BADGES, 1);
 		}
 	}
 	
-	private void exchangeResources(Player player, Game game) {
+	protected void exchangeResources(Player player, Game game) throws Exception{
 		Resources playerResources = resourcesService.findByPlayerIdAndGameId(player.getId(),game.getId()).get();
-		
-		try {
-			playerResources.setResource(ResourceType.GOLD, -2);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		
-		try {
-			playerResources.setResource(ResourceType.IRON, 2);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+		playerResources.addResource(ResourceType.GOLD, -2);
+		playerResources.addResource(ResourceType.IRON, 2);
 	}
 
 	@Override

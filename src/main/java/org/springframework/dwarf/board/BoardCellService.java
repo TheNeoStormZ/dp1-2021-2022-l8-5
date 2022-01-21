@@ -7,8 +7,8 @@ import javax.transaction.Transactional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
-import org.springframework.dwarf.mountain_card.MountainCard;
-import org.springframework.dwarf.mountain_card.MountainCardService;
+import org.springframework.dwarf.mountainCard.MountainCard;
+import org.springframework.dwarf.mountainCard.MountainCardService;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -36,18 +36,16 @@ public class BoardCellService {
 		return boardCellRep.findById(id);
 	}
 	
-	// hacer test
 	@Transactional
-	public BoardCell findByPosition(Integer xposition, Integer yposition) {	
-		return boardCellRep.findByPosition(xposition, yposition);
+	public BoardCell findByPosition(Integer xposition, Integer yposition, Integer boardId) {	
+		return boardCellRep.findByPosition(xposition, yposition, boardId);
 	}
 	
-	// hacer test
 	public List<BoardCell> findOccupiedByBoardId(Integer boardId) {
 		return boardCellRep.findOccupiedByBoardId(boardId);
 	}
 	
-	// hacer test
+
 	public List<BoardCell> findAllByBoardId(Integer boardId) {
 		return boardCellRep.findAllByBoardId(boardId);
 	}
